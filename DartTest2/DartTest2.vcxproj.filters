@@ -13,15 +13,6 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="snapshots">
-      <UniqueIdentifier>{1e48397e-b9e4-4d9b-bb1b-435d1f0b1b15}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="snapshots\debug">
-      <UniqueIdentifier>{08285e10-b99b-4b31-83ef-937b850b208f}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="snapshots\release">
-      <UniqueIdentifier>{508281f0-2abb-4867-9118-7a9c0af41504}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />
@@ -33,9 +24,6 @@
     <ClInclude Include="targetver.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CrbDartServiceIsolate.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -44,34 +32,5 @@
     <ClCompile Include="DartTest2.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="resources_gen.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <MASM Include="..\dart\snapshot-bins\debug\isolate_snapshot_data.asm">
-      <Filter>snapshots\debug</Filter>
-    </MASM>
-    <MASM Include="..\dart\snapshot-bins\debug\isolate_snapshot_instructions.asm">
-      <Filter>snapshots\debug</Filter>
-    </MASM>
-    <MASM Include="..\dart\snapshot-bins\debug\vm_snapshot_data.asm">
-      <Filter>snapshots\debug</Filter>
-    </MASM>
-    <MASM Include="..\dart\snapshot-bins\debug\vm_snapshot_instructions.asm">
-      <Filter>snapshots\debug</Filter>
-    </MASM>
-    <MASM Include="..\dart\snapshot-bins\release\isolate_snapshot_data.asm">
-      <Filter>snapshots\release</Filter>
-    </MASM>
-    <MASM Include="..\dart\snapshot-bins\release\isolate_snapshot_instructions.asm">
-      <Filter>snapshots\release</Filter>
-    </MASM>
-    <MASM Include="..\dart\snapshot-bins\release\vm_snapshot_data.asm">
-      <Filter>snapshots\release</Filter>
-    </MASM>
-    <MASM Include="..\dart\snapshot-bins\release\vm_snapshot_instructions.asm">
-      <Filter>snapshots\release</Filter>
-    </MASM>
   </ItemGroup>
 </Project>
