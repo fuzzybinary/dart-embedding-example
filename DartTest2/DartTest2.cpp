@@ -16,19 +16,19 @@
 #include "bin/eventhandler.h"
 #include "bin/thread.h"
 
-namespace dart {
+namespace dart 
+{
     extern bool FLAG_trace_service;
     extern bool FLAG_trace_service_verbose;
 }
 
-extern "C" {
+extern "C"
+{
     extern const uint8_t kDartVmSnapshotData[];
     extern const uint8_t kDartVmSnapshotInstructions[];
     extern const uint8_t kDartCoreIsolateSnapshotData[];
     extern const uint8_t kDartCoreIsolateSnapshotInstructions[];
 }
-
-Dart_Handle core_library;
 
 Dart_Handle HandleError(Dart_Handle handle)
 {
@@ -62,22 +62,6 @@ Dart_NativeFunction ResolveName(Dart_Handle name, int argc, bool* auto_setup_sco
     return result;
 }
 
-Dart_Handle LoadLibrary(const char* name)
-{
-    Dart_Handle url = Dart_NewStringFromCString(name);
-    Dart_Handle library = Dart_LookupLibrary(url);
-
-    //if (Dart_IsError(library))
-    //    library = Dart_LoadLibrary(url, Dart_NewStringFromCString(source_));
-
-    if (Dart_IsError(library)) {
-        std::cerr << "Failed to load library: " << name
-            << ": " << Dart_GetError(library) << std::endl;
-    }
-
-    return library;
-}
-
 Dart_Handle Dart_Error(const char* format, ...)
 {
     char message[512];
@@ -92,7 +76,8 @@ Dart_Handle Dart_Error(const char* format, ...)
     return handle;
 }
 
-Dart_Handle FilePathFromUri(Dart_Handle script, Dart_Handle core_library) {
+Dart_Handle FilePathFromUri(Dart_Handle script, Dart_Handle core_library) 
+{
     Dart_Handle args[1] = {
         script
     };
@@ -143,7 +128,6 @@ Dart_Handle ResolveScript(const char* script, Dart_Handle core_library)
 
     const char* resolvedString = nullptr;
     Dart_StringToCString(resolved, &resolvedString);
-    std::cout << "Resolved " << script << " to " << resolvedString;
     
     return resolved;
 }
@@ -169,18 +153,6 @@ Dart_Handle LoadScript(const char* script, bool resolve, Dart_Handle core_librar
     if (Dart_IsError(source))
         return source;
 
-    // Test full resolution
-    /*char currentDir[MAX_PATH], realResolved[MAX_PATH];
-    _getcwd(currentDir, MAX_PATH);
-    sprintf_s(realResolved, MAX_PATH, "file://%s/%s", currentDir, script);
-    for (int i = 0; i < strlen(realResolved); ++i) {
-        if (realResolved[i] == '\\') {
-            realResolved[i] = '/';
-        }
-    }*/
-
-    //Dart_Handle dartRealResolved = Dart_NewStringFromCString(resolved_script);
-
     return Dart_LoadScript(resolved_script, resolved_script, source, 0, 0);
 }
 
@@ -190,17 +162,21 @@ Dart_Handle LibraryTagHandler(Dart_LibraryTag tag, Dart_Handle library, Dart_Han
     Dart_Handle result = Dart_StringToCString(url, &url_str);
     if (Dart_IsError(result))
         return result;
-    assert(false);  // TODO: implement.
+
+    // If you want to import other files into your library, you have to implement this,
+    // but for single files there's no need.
+    assert(false);  
     return Dart_Null();
 }
 
 
-bool IsServiceIsolateURL(const char* url_name) {
+bool IsServiceIsolateURL(const char* url_name) 
+{
     return url_name != nullptr &&
         std::string(url_name) == DART_VM_SERVICE_ISOLATE_NAME;
 }
 
-Dart_Isolate ServiceIsolateCreateCallback(const char* apScriptUri, const char* apMain, const char* package_root, const char* package_config, 
+Dart_Isolate CreateServiceIsolate(const char* apScriptUri, const char* apMain, const char* package_root, const char* package_config, 
     Dart_IsolateFlags* apFlags, void* apCallbackData, char** aoError)
 {
     dart::bin::IsolateData* isolate_data =
@@ -222,18 +198,16 @@ Dart_Isolate ServiceIsolateCreateCallback(const char* apScriptUri, const char* a
     return isolate;
 }
 
-Dart_Isolate CreateIsolate(const char* script, const char* main, const char* package_root, const char* package_config,
+Dart_Isolate CreateIsolate(const char* script, const char* main, const char* packageRoot, const char* packageConfig,
     Dart_IsolateFlags* flags, void* data, Dart_Handle* library, char** error)
 {
     std::cout << __FUNCTION__ << ": " << script << ", " << (main ? main : "NULL") << std::endl;
 
-    if (IsServiceIsolateURL(script))
+    if (data == nullptr)
     {
-        return ServiceIsolateCreateCallback(script, main, package_root, package_config, flags, data, error);
+        data = new dart::bin::IsolateData(script, packageRoot, packageConfig, nullptr);
     }
-    
-    dart::bin::IsolateData* isolate_data = new dart::bin::IsolateData(script, package_root, package_config, nullptr);
-    Dart_Isolate isolate = Dart_CreateIsolate(script, main, kDartCoreIsolateSnapshotData, kDartCoreIsolateSnapshotInstructions, flags, isolate_data, error);
+    Dart_Isolate isolate = Dart_CreateIsolate(script, main, kDartCoreIsolateSnapshotData, kDartCoreIsolateSnapshotInstructions, flags, data, error);
     assert(isolate);
 
     std::cout << "Created isolate" << std::endl;
@@ -248,40 +222,13 @@ Dart_Isolate CreateIsolate(const char* script, const char* main, const char* pac
         goto fail;
     }
 
-    // Set up uri library.
-    //Dart_Handle uri_library = Isolate::uri_library->Load();
-    //if (Dart_IsError(uri_library))
-    //    goto fail;
-
-    // Set up core library.
-    core_library = LoadLibrary("dart:_builtin");
-    if (Dart_IsError(core_library))
-    {
-        *error = _strdup(Dart_GetError(core_library));
-        return 0;
-    }
-
-    //// Set up io library.
-    //Dart_Handle io_library = Isolate::io_library->Load();
-    //if (Dart_IsError(io_library))
-    //    goto fail;
-
-    std::cout << "Loaded builtin libraries" << std::endl;
-
+    Dart_Handle coreLibrary = Dart_LookupLibrary(Dart_NewStringFromCString("dart:_builtin"));
     std::cout << "About to load " << script << std::endl;
-    Dart_Handle lib = LoadScript(script, true, core_library);
+    Dart_Handle lib = LoadScript(script, true, coreLibrary);
 
     if (Dart_IsError(lib))
     {
         *error = _strdup(Dart_GetError(lib));
-        goto fail;
-    }
-
-    result = Dart_LibraryImportLibrary(lib, core_library, Dart_Null());
-
-    if (Dart_IsError(result))
-    {
-        *error = _strdup(Dart_GetError(result));
         goto fail;
     }
 
@@ -300,7 +247,7 @@ Dart_Isolate CreateIsolate(const char* script, const char* main, const char* pac
         *error = _strdup("Invalid isolate state - Unable to make it runnable");
         Dart_EnterIsolate(isolate);
         Dart_ShutdownIsolate();
-        return NULL;
+        return nullptr;
     }
 
     return isolate;
@@ -308,21 +255,30 @@ Dart_Isolate CreateIsolate(const char* script, const char* main, const char* pac
 fail:
     Dart_ExitScope();
     Dart_ShutdownIsolate();
-    return NULL;
+    return nullptr;
 }
 
 Dart_Isolate IsolateCreateCallback(const char* script_uri, const char* main, const char
     * package_root, const char* package_config, Dart_IsolateFlags* flags, void* callback_data, char** error)
 {
     Dart_Handle library;
-    auto isolate = CreateIsolate(script_uri, main, package_root, package_config, flags, callback_data, &library, error);
-    if (isolate == NULL)
+    dart::bin::IsolateData* isolateData = new dart::bin::IsolateData(script_uri, package_root, package_config, nullptr);
+
+    if (IsServiceIsolateURL(script_uri))
     {
-        std::cerr << "Failed to create Isolate: " << script_uri << "|" << (main ? main : "(NULL)")
-            << ": " << error << std::endl;
+        return CreateServiceIsolate(script_uri, main, package_root, package_config, flags, isolateData, error);
+    }
+    else
+    {
+        auto isolate = CreateIsolate(script_uri, main, package_root, package_config, flags, isolateData, &library, error);
+        if (isolate == nullptr)
+        {
+            std::cerr << "Failed to create Isolate: " << script_uri << "|" << (main ? main : "(NULL)")
+                << ": " << error << std::endl;
+        }
     }
 
-    return isolate;
+    return nullptr;
 }
 
 bool IsolateInterruptCallback()
@@ -332,37 +288,13 @@ bool IsolateInterruptCallback()
 
 void IsolateShutdownCallback(void* callback_data)
 {
-
+    dart::bin::IsolateData* data = (dart::bin::IsolateData*)callback_data;
+    delete data;
 }
 
 void IsolateUnhandledExceptionCallback(Dart_Handle error)
 {
 
-}
-
-void *IsolateFileOpenCallback(const char* name, bool write)
-{
-    return NULL;
-}
-
-void IsolateFileReadCallback(const uint8_t** data, intptr_t* file_length, void* stream)
-{
-
-}
-
-void IsolateFileWriteCallback(const void* data, intptr_t length, void* stream)
-{
-
-}
-
-void IsolateFileCloseCallback(void* stream)
-{
-
-}
-
-bool IsolateEntropySource(uint8_t* buffer, intptr_t length)
-{
-    return false;
 }
 
 
@@ -385,10 +317,10 @@ int main(int argc, const char** argv)
     params.vm_snapshot_instructions = kDartVmSnapshotInstructions;
     params.create = IsolateCreateCallback;
     params.shutdown = IsolateShutdownCallback;
-    char* init_error = Dart_Initialize(&params);
-    if (init_error)
+    char* initError = Dart_Initialize(&params);
+    if (initError)
     {
-        std::cout << init_error;
+        std::cout << initError;
         return 0;
     }
 
@@ -398,7 +330,8 @@ int main(int argc, const char** argv)
 
     char* error;
     Dart_Handle library;
-    Dart_Isolate isolate = CreateIsolate("hello_world.dart", "main", nullptr, nullptr, NULL, NULL, &library, &error);
+    
+    Dart_Isolate isolate = CreateIsolate("hello_world.dart", "main", nullptr, nullptr, nullptr, nullptr, &library, &error);
     
     Dart_EnterIsolate(isolate);
     Dart_EnterScope();
@@ -408,34 +341,31 @@ int main(int argc, const char** argv)
     Dart_SetNativeResolver(library, ResolveName, nullptr);
     
 
-    Dart_Handle main_closure =
-        Dart_GetClosure(library, Dart_NewStringFromCString("main"));
-    if (!Dart_IsClosure(main_closure)) {
+    Dart_Handle mainClosure = Dart_GetClosure(library, Dart_NewStringFromCString("main"));
+    if (!Dart_IsClosure(mainClosure))
+    {
         std::cout << "Unable to find 'main' in root library " << "hello_world.dart";
     }
 
     // Call _startIsolate in the isolate library to enable dispatching the
     // initial startup message.
     const intptr_t kNumIsolateArgs = 2;
-    Dart_Handle isolate_args[kNumIsolateArgs];
-    isolate_args[0] = main_closure;                        // entryPoint
-    isolate_args[1] = Dart_Null();
-
-    Dart_Handle isolate_lib =
-        Dart_LookupLibrary(Dart_NewStringFromCString("dart:isolate"));
-    Dart_Handle result = Dart_Invoke(isolate_lib,
-        Dart_NewStringFromCString("_startMainIsolate"),
-        kNumIsolateArgs, isolate_args);
+    Dart_Handle isolateArgs[2] = {
+        mainClosure,
+        Dart_Null()
+    };
+    Dart_Handle isolateLib = Dart_LookupLibrary(Dart_NewStringFromCString("dart:isolate"));
+    Dart_Handle result = Dart_Invoke(isolateLib, Dart_NewStringFromCString("_startMainIsolate"),
+        kNumIsolateArgs, isolateArgs);
     
     // Keep handling messages until the last active receive port is closed.
     result = Dart_RunLoop();
 
     if (Dart_IsError(result))
     {
-        std::cerr << "Failed to invoke main: "
-            << Dart_GetError(result);
+        std::cerr << "Failed to invoke main: " << Dart_GetError(result);
     }
-    Dart_RunLoop();
+
     Dart_ExitScope();
     Dart_ShutdownIsolate();
 
