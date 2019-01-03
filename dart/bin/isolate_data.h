@@ -5,6 +5,9 @@
 #ifndef RUNTIME_BIN_ISOLATE_DATA_H_
 #define RUNTIME_BIN_ISOLATE_DATA_H_
 
+#include <memory>
+#include <utility>
+
 #include "include/dart_api.h"
 #include "platform/assert.h"
 #include "platform/globals.h"
@@ -36,23 +39,42 @@ class IsolateData {
               AppSnapshot* app_snapshot);
   ~IsolateData();
 
-  Dart_Handle builtin_lib() const {
-    ASSERT(builtin_lib_ != NULL);
-    ASSERT(!Dart_IsError(builtin_lib_));
-    return builtin_lib_;
-  }
-  void set_builtin_lib(Dart_Handle lib) {
-    ASSERT(builtin_lib_ == NULL);
-    ASSERT(lib != NULL);
-    ASSERT(!Dart_IsError(lib));
-    builtin_lib_ = Dart_NewPersistentHandle(lib);
-  }
-
   char* script_url;
   char* package_root;
   char* packages_file;
-  uint8_t* udp_receive_buffer;
-  void* kernel_program;
+
+  const std::shared_ptr<uint8_t>& kernel_buffer() const {
+    return kernel_buffer_;
+  }
+
+  intptr_t kernel_buffer_size() const { return kernel_buffer_size_; }
+
+  // Associate the given kernel buffer with this IsolateData without giving it
+  // ownership of the buffer.
+  void SetKernelBufferUnowned(uint8_t* buffer, intptr_t size) {
+    ASSERT(kernel_buffer_.get() == NULL);
+    kernel_buffer_ = std::shared_ptr<uint8_t>(buffer, FreeUnownedKernelBuffer);
+    kernel_buffer_size_ = size;
+  }
+
+  // Associate the given kernel buffer with this IsolateData and give it
+  // ownership of the buffer. This IsolateData is the first one to own the
+  // buffer.
+  void SetKernelBufferNewlyOwned(uint8_t* buffer, intptr_t size) {
+    ASSERT(kernel_buffer_.get() == NULL);
+    kernel_buffer_ = std::shared_ptr<uint8_t>(buffer, free);
+    kernel_buffer_size_ = size;
+  }
+
+  // Associate the given kernel buffer with this IsolateData and give it
+  // ownership of the buffer. The buffer is already owned by another
+  // IsolateData.
+  void SetKernelBufferAlreadyOwned(std::shared_ptr<uint8_t> buffer,
+                                   intptr_t size) {
+    ASSERT(kernel_buffer_.get() == NULL);
+    kernel_buffer_ = std::move(buffer);
+    kernel_buffer_size_ = size;
+  }
 
   void UpdatePackagesFile(const char* packages_file_) {
     if (packages_file != NULL) {
@@ -60,6 +82,18 @@ class IsolateData {
       packages_file = NULL;
     }
     packages_file = _strdup(packages_file_);
+  }
+
+  const char* resolved_packages_config() const {
+    return resolved_packages_config_;
+  }
+
+  void set_resolved_packages_config(const char* packages_config) {
+    if (resolved_packages_config_ != NULL) {
+      free(resolved_packages_config_);
+      resolved_packages_config_ = NULL;
+    }
+    resolved_packages_config_ = _strdup(packages_config);
   }
 
   // While loading a loader is associated with the isolate.
@@ -80,10 +114,14 @@ class IsolateData {
   void OnIsolateShutdown();
 
  private:
-  Dart_Handle builtin_lib_;
   Loader* loader_;
   AppSnapshot* app_snapshot_;
   MallocGrowableArray<char*>* dependencies_;
+  char* resolved_packages_config_;
+  std::shared_ptr<uint8_t> kernel_buffer_;
+  intptr_t kernel_buffer_size_;
+
+  static void FreeUnownedKernelBuffer(uint8_t*) {}
 
   DISALLOW_COPY_AND_ASSIGN(IsolateData);
 };

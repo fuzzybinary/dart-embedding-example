@@ -29,8 +29,7 @@ Get the Dart SDK source according to the instructions provided at the Dart home 
 https://github.com/dart-lang/sdk/wiki/Building
 
 If you're using Visual Studio 2017 Community (like I am) you'll have to trick depot_tools into using it. Set the following environment variables:
-- set GYP_MSVS_VERSION=2015
-- set GYP_MSVS_OVERRIDE_PATH=c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\
+- set GYP_MSVS_VERSION=2017
 - set DEPOT_TOOLS_WIN_TOOLCHAIN=0
 
 ## Build the SDK 

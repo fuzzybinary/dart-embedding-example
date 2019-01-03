@@ -25,10 +25,6 @@
 #define NOKERNEL
 #endif
 
-#if !defined(NOUSER)
-#define NOUSER
-#endif
-
 #if !defined(NOSERVICE)
 #define NOSERVICE
 #endif
@@ -48,6 +44,7 @@
 
 #include <Rpc.h>
 #include <VersionHelpers.h>
+#include <intrin.h>
 #include <shellapi.h>
 #include <windows.h>
 #include <winsock2.h>
@@ -118,36 +115,11 @@
 #error Automatic target os detection failed.
 #endif
 
-// Setup product, release or debug build related macros.
-#if defined(PRODUCT) && defined(DEBUG)
-#error Both PRODUCT and DEBUG defined.
-#endif  // defined(PRODUCT) && defined(DEBUG)
-
-#if defined(PRODUCT)
-#define NOT_IN_PRODUCT(code)
-#else  // defined(PRODUCT)
-#define NOT_IN_PRODUCT(code) code
-#endif  // defined(PRODUCT)
-
 #if defined(DEBUG)
 #define DEBUG_ONLY(code) code
 #else  // defined(DEBUG)
 #define DEBUG_ONLY(code)
 #endif  // defined(DEBUG)
-
-#if defined(DART_PRECOMPILED_RUNTIME) && defined(DART_PRECOMPILER)
-#error DART_PRECOMPILED_RUNTIME and DART_PRECOMPILER are mutually exclusive
-#endif  // defined(DART_PRECOMPILED_RUNTIME) && defined(DART_PRECOMPILER)
-
-#if defined(DART_PRECOMPILED_RUNTIME) && defined(DART_NOSNAPSHOT)
-#error DART_PRECOMPILED_RUNTIME and DART_NOSNAPSHOT are mutually exclusive
-#endif  // defined(DART_PRECOMPILED_RUNTIME) && defined(DART_NOSNAPSHOT)
-
-#if defined(DART_PRECOMPILED_RUNTIME)
-#define NOT_IN_PRECOMPILED(code)
-#else
-#define NOT_IN_PRECOMPILED(code) code
-#endif  // defined(DART_PRECOMPILED_RUNTIME)
 
 namespace dart {
 
@@ -264,6 +236,23 @@ typedef simd128_value_t fpu_register_t;
 #define DART_NOINLINE __attribute__((noinline))
 #else
 #error Automatic compiler detection failed.
+#endif
+
+#ifdef _MSC_VER
+#elif __GNUC__
+#define DART_HAS_COMPUTED_GOTO 1
+#else
+#error Automatic compiler detection failed.
+#endif
+
+// LIKELY/UNLIKELY give the compiler branch preditions that may affect block
+// scheduling.
+#ifdef __GNUC__
+#define LIKELY(cond) __builtin_expect((cond), 1)
+#define UNLIKELY(cond) __builtin_expect((cond), 0)
+#else
+#define LIKELY(cond) cond
+#define UNLIKELY(cond) cond
 #endif
 
 // DART_UNUSED indicates to the compiler that a variable or typedef is expected
@@ -386,6 +375,10 @@ typedef simd128_value_t fpu_register_t;
 #define Pu PRIuPTR
 #define Px PRIxPTR
 #define PX PRIXPTR
+#define Pd32 PRId32
+#define Pu32 PRIu32
+#define Px32 PRIx32
+#define PX32 PRIX32
 #define Pd64 PRId64
 #define Pu64 PRIu64
 #define Px64 PRIx64
@@ -419,6 +412,12 @@ typedef simd128_value_t fpu_register_t;
   (((static_cast<uint64_t>(a) << 32) + 0x##b##u))
 
 // Integer constants.
+const int8_t kMinInt8 = 0x80;
+const int8_t kMaxInt8 = 0x7F;
+const uint8_t kMaxUint8 = 0xFF;
+const int16_t kMinInt16 = 0x8000;
+const int16_t kMaxInt16 = 0x7FFF;
+const uint16_t kMaxUint16 = 0xFFFF;
 const int32_t kMinInt32 = 0x80000000;
 const int32_t kMaxInt32 = 0x7FFFFFFF;
 const uint32_t kMaxUint32 = 0xFFFFFFFF;
@@ -669,7 +668,7 @@ static inline void StoreUnaligned(T* ptr, T value) {
 // On Windows the reentrent version of strtok is called
 // strtok_s. Unify on the posix name strtok_r.
 #if defined(HOST_OS_WINDOWS)
-#define snprintf _snprintf
+#define snprintf _sprintf_p
 #define strtok_r strtok_s
 #endif
 
@@ -682,7 +681,7 @@ static inline void StoreUnaligned(T* ptr, T value) {
 #endif  // defined(TEMP_FAILURE_RETRY)
 #endif  // !defined(HOST_OS_WINDOWS)
 
-#if defined(HOST_OS_LINUX) || defined(HOST_OS_MACOS)
+#if __GNUC__
 // Tell the compiler to do printf format string checking if the
 // compiler supports it; see the 'format' attribute in
 // <http://gcc.gnu.org/onlinedocs/gcc-4.3.0/gcc/Function-Attributes.html>.
@@ -700,14 +699,6 @@ static inline void StoreUnaligned(T* ptr, T value) {
 #define STDIN_FILENO 0
 #define STDOUT_FILENO 1
 #define STDERR_FILENO 2
-#endif
-
-// For checking deterministic graph generation, we can store instruction
-// tag in the ICData and check it when recreating the flow graph in
-// optimizing compiler. Enable it for other modes (product, release) if needed
-// for debugging.
-#if defined(DEBUG)
-#define TAG_IC_DATA
 #endif
 
 }  // namespace dart

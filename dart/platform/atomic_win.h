@@ -2,10 +2,10 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-#ifndef RUNTIME_VM_ATOMIC_WIN_H_
-#define RUNTIME_VM_ATOMIC_WIN_H_
+#ifndef RUNTIME_PLATFORM_ATOMIC_WIN_H_
+#define RUNTIME_PLATFORM_ATOMIC_WIN_H_
 
-#if !defined RUNTIME_VM_ATOMIC_H_
+#if !defined RUNTIME_PLATFORM_ATOMIC_H_
 #error Do not include atomic_win.h directly. Use atomic.h instead.
 #endif
 
@@ -102,6 +102,18 @@ inline void AtomicOperations::DecrementBy(intptr_t* p, intptr_t value) {
 #endif
 }
 
+inline uint32_t AtomicOperations::FetchOrRelaxedUint32(uint32_t* ptr,
+                                                       uint32_t value) {
+  return static_cast<uint32_t>(InterlockedOrNoFence(
+      reinterpret_cast<LONG*>(ptr), static_cast<LONG>(value)));
+}
+
+inline uint32_t AtomicOperations::FetchAndRelaxedUint32(uint32_t* ptr,
+                                                        uint32_t value) {
+  return static_cast<uint32_t>(InterlockedAndNoFence(
+      reinterpret_cast<LONG*>(ptr), static_cast<LONG>(value)));
+}
+
 inline uword AtomicOperations::CompareAndSwapWord(uword* ptr,
                                                   uword old_value,
                                                   uword new_value) {
@@ -129,6 +141,24 @@ inline uint32_t AtomicOperations::CompareAndSwapUint32(uint32_t* ptr,
 #endif
 }
 
+template <typename T>
+inline T AtomicOperations::LoadAcquire(T* ptr) {
+#if (defined(HOST_ARCH_X64) || defined(HOST_ARCH_IA32))
+  return *ptr;
+#else
+#error Unsupported host architecture.
+#endif
+}
+
+template <typename T>
+inline void AtomicOperations::StoreRelease(T* ptr, T value) {
+#if (defined(HOST_ARCH_X64) || defined(HOST_ARCH_IA32))
+  *ptr = value;
+#else
+#error Unsupported host architecture.
+#endif
+}
+
 }  // namespace dart
 
-#endif  // RUNTIME_VM_ATOMIC_WIN_H_
+#endif  // RUNTIME_PLATFORM_ATOMIC_WIN_H_

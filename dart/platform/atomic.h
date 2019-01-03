@@ -2,12 +2,12 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-#ifndef RUNTIME_VM_ATOMIC_H_
-#define RUNTIME_VM_ATOMIC_H_
+#ifndef RUNTIME_PLATFORM_ATOMIC_H_
+#define RUNTIME_PLATFORM_ATOMIC_H_
 
 #include "platform/globals.h"
 
-#include "vm/allocation.h"
+#include "platform/allocation.h"
 
 namespace dart {
 
@@ -30,6 +30,10 @@ class AtomicOperations : public AllStatic {
   // Atomically decrement the value at p by 'value'.
   static void DecrementBy(intptr_t* p, intptr_t value);
 
+  // Atomically perform { tmp = *ptr; *ptr = (tmp OP value); return tmp; }.
+  static uint32_t FetchOrRelaxedUint32(uint32_t* ptr, uint32_t value);
+  static uint32_t FetchAndRelaxedUint32(uint32_t* ptr, uint32_t value);
+
   // Atomically compare *ptr to old_value, and if equal, store new_value.
   // Returns the original value at ptr.
   static uword CompareAndSwapWord(uword* ptr, uword old_value, uword new_value);
@@ -43,22 +47,35 @@ class AtomicOperations : public AllStatic {
   static T LoadRelaxed(T* ptr) {
     return *static_cast<volatile T*>(ptr);
   }
+
+  template <typename T>
+  static T LoadAcquire(T* ptr);
+
+  template <typename T>
+  static void StoreRelease(T* ptr, T value);
+
+  template <typename T>
+  static T* CompareAndSwapPointer(T** slot, T* old_value, T* new_value) {
+    return reinterpret_cast<T*>(AtomicOperations::CompareAndSwapWord(
+        reinterpret_cast<uword*>(slot), reinterpret_cast<uword>(old_value),
+        reinterpret_cast<uword>(new_value)));
+  }
 };
 
 }  // namespace dart
 
 #if defined(HOST_OS_ANDROID)
-#include "vm/atomic_android.h"
+#include "platform/atomic_android.h"
 #elif defined(HOST_OS_FUCHSIA)
-#include "vm/atomic_fuchsia.h"
+#include "platform/atomic_fuchsia.h"
 #elif defined(HOST_OS_LINUX)
-#include "vm/atomic_linux.h"
+#include "platform/atomic_linux.h"
 #elif defined(HOST_OS_MACOS)
-#include "vm/atomic_macos.h"
+#include "platform/atomic_macos.h"
 #elif defined(HOST_OS_WINDOWS)
-#include "vm/atomic_win.h"
+#include "platform/atomic_win.h"
 #else
 #error Unknown target os.
 #endif
 
-#endif  // RUNTIME_VM_ATOMIC_H_
+#endif  // RUNTIME_PLATFORM_ATOMIC_H_
