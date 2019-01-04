@@ -137,30 +137,6 @@ Dart_Handle ResolveScript(const char* script, Dart_Handle core_library)
     return resolved;
 }
 
-//Dart_Handle LoadScript(const char* script, bool resolve, Dart_Handle core_library)
-//{
-//    std::cout << __FUNCTION__ << ": " << script << ", " << resolve << std::endl;
-//    Dart_Handle resolved_script;
-//    Dart_Handle dart_script = Dart_NewStringFromCString(script);
-//
-//    if (resolve) 
-//    {
-//        resolved_script = ResolveScript(script, core_library);
-//        if (Dart_IsError(resolved_script))
-//            return resolved_script;
-//    }
-//    else 
-//    {
-//        resolved_script = Dart_NewStringFromCString(script);
-//    }
-//
-//    Dart_Handle source = ReadSource(resolved_script, core_library);
-//    if (Dart_IsError(source))
-//        return source;
-//
-//    return Dart_LoadScript(resolved_script, resolved_script, source, 0, 0);
-//}
-
 Dart_Handle LibraryTagHandler(Dart_LibraryTag tag, Dart_Handle library, Dart_Handle url)
 {
     const char* url_str = NULL;
@@ -197,7 +173,7 @@ static Dart_Isolate CreateAndSetupKernelIsolate(const char* script_uri,
     dfe.LoadKernelService(&kernel_service_buffer, &kernel_service_buffer_size);
     ASSERT(kernel_service_buffer != NULL);
     isolate_data = new IsolateData(script_uri, package_root, packages_config, NULL);
-    isolate_data->SetKernelBufferNewlyOwned(const_cast<uint8_t*>(kernel_service_buffer),
+    isolate_data->SetKernelBufferUnowned(const_cast<uint8_t*>(kernel_service_buffer),
         kernel_service_buffer_size);
     isolate = Dart_CreateIsolateFromKernel(
         DART_KERNEL_ISOLATE_NAME, main, kernel_service_buffer,
@@ -268,17 +244,10 @@ Dart_Isolate CreateIsolate(bool isMainIsolate, const char* script, const char* m
 
     const uint8_t* platform_kernel_buffer = NULL;
     intptr_t platform_kernel_buffer_size = 0;
-    dfe.LoadPlatform(&platform_kernel_buffer, &platform_kernel_buffer_size);
-    /*if (platform_kernel_buffer == NULL) {
-        platform_kernel_buffer = kernel_buffer;
-        platform_kernel_buffer_size = kernel_buffer_size;
-    }*/
     
-    isolate = Dart_CreateIsolateFromKernel(
-        script, main, platform_kernel_buffer, platform_kernel_buffer_size,
-        flags, isolateData, error);
-   /* isolate = Dart_CreateIsolate(script, main, kDartCoreIsolateSnapshotData,
-        kDartCoreIsolateSnapshotInstructions, nullptr, nullptr, flags, isolateData, error);*/
+    isolate = Dart_CreateIsolate(
+        script, main, kDartCoreIsolateSnapshotData, kDartCoreIsolateSnapshotInstructions,
+        nullptr, nullptr, flags, isolateData, error);
     assert(isolate);
 
     std::cout << "Created isolate" << std::endl;
@@ -328,9 +297,6 @@ Dart_Isolate CreateIsolate(bool isMainIsolate, const char* script, const char* m
     Builtin::SetNativeResolver(Builtin::kCLILibrary);
     VmService::SetNativeResolver();
 
-    //Dart_Handle uri =
-    //    DartUtils::ResolveScript(Dart_NewStringFromCString(script));
-    
     Dart_TimelineEvent("LoadScript", Dart_TimelineGetMicros(),
         Dart_GetMainPortId(), Dart_Timeline_Event_Async_End, 0,
         NULL, NULL);
@@ -347,7 +313,6 @@ Dart_Isolate CreateIsolate(bool isMainIsolate, const char* script, const char* m
     *error = Dart_IsolateMakeRunnable(isolate);
     if (*error != nullptr) 
     {
-        //*error = _strdup("Invalid isolate state - Unable to make it runnable");
         Dart_EnterIsolate(isolate);
         Dart_ShutdownIsolate();
         return nullptr;
@@ -368,11 +333,12 @@ Dart_Isolate IsolateCreateCallback(const char* script_uri, const char* main, con
     Dart_Handle library;
     IsolateData* isolateData = new IsolateData(script_uri, package_root, package_config, nullptr);
 
-    if (IsServiceIsolateURL(script_uri))
+    if (strcmp(script_uri, DART_VM_SERVICE_ISOLATE_NAME) == 0)
     {
         return CreateServiceIsolate(script_uri, main, package_root, package_config, flags, isolateData, error);
     }
-    else if (strcmp(script_uri, DART_KERNEL_ISOLATE_NAME) == 0) {
+    else if (strcmp(script_uri, DART_KERNEL_ISOLATE_NAME) == 0) 
+    {
         int exit_code;
         return CreateAndSetupKernelIsolate(script_uri, main, package_root,
             package_config, flags, error,
@@ -411,8 +377,8 @@ void IsolateUnhandledExceptionCallback(Dart_Handle error)
 
 int main(int argc, const char** argv)
 {
-    dart::FLAG_trace_service = true;
-    dart::FLAG_trace_service_verbose = true;
+    //dart::FLAG_trace_service = true;
+    //dart::FLAG_trace_service_verbose = true;
 
     Dart_SetVMFlags(argc, argv);
     Platform::SetExecutableName(argv[0]);
@@ -431,12 +397,12 @@ int main(int argc, const char** argv)
     intptr_t application_kernel_buffer_size = 0;
     dfe.ReadScript("hello_world.dart", &application_kernel_buffer,
         &application_kernel_buffer_size);
-    if (application_kernel_buffer != NULL) {
+    if (application_kernel_buffer != NULL) 
+    {
         // Since we loaded the script anyway, save it.
         dfe.set_application_kernel_buffer(application_kernel_buffer,
             application_kernel_buffer_size);
         dfe.set_use_dfe();
-        //Options::dfe()->set_use_dfe();
     }
 
     Dart_InitializeParams params = {};

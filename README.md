@@ -15,6 +15,12 @@ DartTest2/DartTest2.cpp does all of the embedding work.  Note:
 - I need to check if debugging of imported libraries works. I assume it does, but I need
   to check.
 
+Other Notes -
+  - This is taken from main.cc in runtime/bin which is complicated because it supports all the various
+  ways of booting the dart runtime in AOT, and other modes. I would like to see how to accomplish
+  that moving forward
+  - The startup time is high... I'm not sure why
+
 
 How I did this
 ===============
@@ -64,6 +70,8 @@ Other Notes
 I made other changes to GN files to suit my development style. For example, I no longer
 use the statically linked C runtime when I can avoid it, but dart does. If you are building
 this for yourself, you may need to change these settings to suit your needs.
+
+These changes are made in build/config/compiler/BUILD.gn
 
 Like this?
 ==========
