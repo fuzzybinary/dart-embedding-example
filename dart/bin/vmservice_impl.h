@@ -17,8 +17,11 @@ class VmService {
   static bool Setup(const char* server_ip,
                     intptr_t server_port,
                     bool dev_mode_server,
+                    bool auth_codes_disabled,
+                    const char* write_service_info_filename,
                     bool trace_loading,
-                    bool deterministic);
+                    bool deterministic,
+                    bool enable_service_port_fallback);
 
   static void SetNativeResolver();
 

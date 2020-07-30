@@ -55,7 +55,10 @@ class CommandLineOptions {
     arguments_ = NULL;
   }
 
+  void Reset() { count_ = 0; }
+
   int count() const { return count_; }
+  int max_count() const { return max_count_; }
   const char** arguments() const { return arguments_; }
 
   const char* GetArgument(int index) const {
@@ -69,6 +72,17 @@ class CommandLineOptions {
       abort();  // We should never get into this situation.
     }
   }
+
+  void AddArguments(const char** argv, int argc) {
+    if (count_ + argc >= max_count_) {
+      abort();  // We should never get into this situation.
+    }
+    for (int i = 0; i < argc; ++i) {
+      arguments_[count_++] = argv[i];
+    }
+  }
+
+  Dart_Handle CreateRuntimeOptions();
 
   void operator delete(void* pointer) { abort(); }
 
@@ -151,9 +165,8 @@ class DartUtils {
   static Dart_Handle MakeUint8Array(const uint8_t* buffer, intptr_t length);
   static Dart_Handle PrepareForScriptLoading(bool is_service_isolate,
                                              bool trace_loading);
-  static Dart_Handle SetupServiceLoadPort();
-  static Dart_Handle SetupPackageRoot(const char* package_root,
-                                      const char* packages_file);
+  static Dart_Handle SetupPackageConfig(const char* packages_file);
+
   static Dart_Handle SetupIOLibrary(const char* namespc_path,
                                     const char* script_uri,
                                     bool disable_exit);
@@ -176,6 +189,7 @@ class DartUtils {
                                                  const char* exception_name,
                                                  const char* message);
   static Dart_Handle NewDartArgumentError(const char* message);
+  static Dart_Handle NewDartFormatException(const char* message);
   static Dart_Handle NewDartUnsupportedError(const char* message);
   static Dart_Handle NewDartIOException(const char* exception_name,
                                         const char* message,

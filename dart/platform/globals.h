@@ -5,6 +5,24 @@
 #ifndef RUNTIME_PLATFORM_GLOBALS_H_
 #define RUNTIME_PLATFORM_GLOBALS_H_
 
+#if __cplusplus >= 201703L            // C++17
+#define FALL_THROUGH [[fallthrough]]  // NOLINT
+#elif defined(__GNUC__) && __GNUC__ >= 7
+#define FALL_THROUGH __attribute__((fallthrough));
+#elif defined(__clang__)
+#define FALL_THROUGH [[clang::fallthrough]]  // NOLINT
+#else
+#define FALL_THROUGH ((void)0)
+#endif
+
+#if defined(GOOGLE3)
+// google3 builds use NDEBUG to indicate non-debug builds which is different
+// from the way the Dart project expects it: DEBUG indicating a debug build.
+#if !defined(NDEBUG) && !defined(DEBUG)
+#define DEBUG
+#endif  // !NDEBUG && !DEBUG
+#endif  // GOOGLE3
+
 // __STDC_FORMAT_MACROS has to be defined before including <inttypes.h> to
 // enable platform independent printf format specifiers.
 #ifndef __STDC_FORMAT_MACROS
@@ -52,27 +70,24 @@
 
 #if !defined(_WIN32)
 #include <arpa/inet.h>
-#include <inttypes.h>
-#include <stdint.h>
 #include <unistd.h>
 #endif  // !defined(_WIN32)
 
 #include <float.h>
+#include <inttypes.h>
 #include <limits.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 
 #if defined(_WIN32)
-#include "platform/c99_support_win.h"
 #include "platform/floating_point_win.h"
-#include "platform/inttypes_support_win.h"
 #endif  // defined(_WIN32)
-
-#include "platform/math.h"
 
 #if !defined(_WIN32)
 #include "platform/floating_point.h"
@@ -119,6 +134,12 @@
 #define DEBUG_ONLY(code) code
 #else  // defined(DEBUG)
 #define DEBUG_ONLY(code)
+#endif  // defined(DEBUG)
+
+#if defined(DEBUG)
+#define UNLESS_DEBUG(code)
+#else  // defined(DEBUG)
+#define UNLESS_DEBUG(code) code
 #endif  // defined(DEBUG)
 
 namespace dart {
@@ -292,8 +313,7 @@ typedef simd128_value_t fpu_register_t;
 #endif
 
 #if !defined(TARGET_ARCH_ARM) && !defined(TARGET_ARCH_X64) &&                  \
-    !defined(TARGET_ARCH_IA32) && !defined(TARGET_ARCH_ARM64) &&               \
-    !defined(TARGET_ARCH_DBC)
+    !defined(TARGET_ARCH_IA32) && !defined(TARGET_ARCH_ARM64)
 // No target architecture specified pick the one matching the host architecture.
 #if defined(HOST_ARCH_ARM)
 #define TARGET_ARCH_ARM 1
@@ -308,17 +328,29 @@ typedef simd128_value_t fpu_register_t;
 #endif
 #endif
 
+#if defined(TARGET_ARCH_IA32) || defined(TARGET_ARCH_ARM)
+#define TARGET_ARCH_IS_32_BIT 1
+#elif defined(TARGET_ARCH_X64) || defined(TARGET_ARCH_ARM64)
+#define TARGET_ARCH_IS_64_BIT 1
+#else
+#error Automatic target architecture detection failed.
+#endif
+
 // Verify that host and target architectures match, we cannot
 // have a 64 bit Dart VM generating 32 bit code or vice-versa.
 #if defined(TARGET_ARCH_X64) || defined(TARGET_ARCH_ARM64)
 #if !defined(ARCH_IS_64_BIT)
 #error Mismatched Host/Target architectures.
-#endif
+#endif  // !defined(ARCH_IS_64_BIT)
 #elif defined(TARGET_ARCH_IA32) || defined(TARGET_ARCH_ARM)
-#if !defined(ARCH_IS_32_BIT)
+#if defined(HOST_ARCH_X64) && defined(TARGET_ARCH_ARM)
+// This is simarm_x64, which is the only case where host/target architecture
+// mismatch is allowed.
+#define IS_SIMARM_X64 1
+#elif !defined(ARCH_IS_32_BIT)
 #error Mismatched Host/Target architectures.
-#endif
-#endif
+#endif  // !defined(ARCH_IS_32_BIT)
+#endif  // defined(TARGET_ARCH_IA32) || defined(TARGET_ARCH_ARM)
 
 // Determine whether we will be using the simulator.
 #if defined(TARGET_ARCH_IA32)
@@ -327,7 +359,10 @@ typedef simd128_value_t fpu_register_t;
 // No simulator used.
 #elif defined(TARGET_ARCH_ARM)
 #if !defined(HOST_ARCH_ARM)
+#define TARGET_HOST_MISMATCH 1
+#if !defined(IS_SIMARM_X64)
 #define USING_SIMULATOR 1
+#endif
 #endif
 
 #elif defined(TARGET_ARCH_ARM64)
@@ -335,17 +370,14 @@ typedef simd128_value_t fpu_register_t;
 #define USING_SIMULATOR 1
 #endif
 
-#elif defined(TARGET_ARCH_DBC)
-#define USING_SIMULATOR 1
-
 #else
 #error Unknown architecture.
 #endif
 
-// Disable background threads by default on armv5te. The relevant
-// implementations are uniprocessors.
-#if !defined(TARGET_ARCH_ARM_5TE)
-#define ARCH_IS_MULTI_CORE 1
+#if defined(ARCH_IS_32_BIT) || defined(IS_SIMARM_X64)
+#define TARGET_ARCH_IS_32_BIT 1
+#elif defined(ARCH_IS_64_BIT)
+#define TARGET_ARCH_IS_64_BIT 1
 #endif
 
 #if !defined(TARGET_OS_ANDROID) && !defined(TARGET_OS_FUCHSIA) &&              \
@@ -368,6 +400,18 @@ typedef simd128_value_t fpu_register_t;
 #else
 #error Automatic target OS detection failed.
 #endif
+#endif
+
+// Determine whether dual mapping of code pages is supported.
+// We test dual mapping on linux x64 and deploy it on fuchsia.
+#if !defined(DART_PRECOMPILED_RUNTIME) &&                                      \
+    (defined(TARGET_OS_LINUX) && defined(TARGET_ARCH_X64) ||                   \
+     defined(TARGET_OS_FUCHSIA))
+#define DUAL_MAPPING_SUPPORTED 1
+#endif
+
+#if defined(DART_PRECOMPILED_RUNTIME) || defined(DART_PRECOMPILER)
+#define SUPPORT_UNBOXED_INSTANCE_FIELDS
 #endif
 
 // Short form printf format specifiers
@@ -423,6 +467,10 @@ const int32_t kMaxInt32 = 0x7FFFFFFF;
 const uint32_t kMaxUint32 = 0xFFFFFFFF;
 const int64_t kMinInt64 = DART_INT64_C(0x8000000000000000);
 const int64_t kMaxInt64 = DART_INT64_C(0x7FFFFFFFFFFFFFFF);
+const int kMinInt = INT_MIN;
+const int kMaxInt = INT_MAX;
+const int64_t kMinInt64RepresentableAsDouble = kMinInt64;
+const int64_t kMaxInt64RepresentableAsDouble = DART_INT64_C(0x7FFFFFFFFFFFFC00);
 const uint64_t kMaxUint64 = DART_2PART_UINT64_C(0xFFFFFFFF, FFFFFFFF);
 const int64_t kSignBitDouble = DART_INT64_C(0x8000000000000000);
 
@@ -431,8 +479,10 @@ const int64_t kSignBitDouble = DART_INT64_C(0x8000000000000000);
 typedef intptr_t word;
 typedef uintptr_t uword;
 
-// Size of a class id.
-typedef uint16_t classid_t;
+// Size of a class id assigned to concrete, abstract and top-level classes.
+//
+// We use a signed integer type here to make it comparable with intptr_t.
+typedef int32_t classid_t;
 
 // Byte sizes.
 const int kWordSize = sizeof(word);
@@ -513,8 +563,8 @@ inline double MicrosecondsToMilliseconds(int64_t micros) {
 #if !defined(DISALLOW_COPY_AND_ASSIGN)
 #define DISALLOW_COPY_AND_ASSIGN(TypeName)                                     \
  private:                                                                      \
-  TypeName(const TypeName&);                                                   \
-  void operator=(const TypeName&)
+  TypeName(const TypeName&) = delete;                                          \
+  void operator=(const TypeName&) = delete
 #endif  // !defined(DISALLOW_COPY_AND_ASSIGN)
 
 // A macro to disallow all the implicit constructors, namely the default
@@ -525,7 +575,7 @@ inline double MicrosecondsToMilliseconds(int64_t micros) {
 #if !defined(DISALLOW_IMPLICIT_CONSTRUCTORS)
 #define DISALLOW_IMPLICIT_CONSTRUCTORS(TypeName)                               \
  private:                                                                      \
-  TypeName();                                                                  \
+  TypeName() = delete;                                                         \
   DISALLOW_COPY_AND_ASSIGN(TypeName)
 #endif  // !defined(DISALLOW_IMPLICIT_CONSTRUCTORS)
 
@@ -549,40 +599,6 @@ inline double MicrosecondsToMilliseconds(int64_t micros) {
 // for unused variables.
 template <typename T>
 static inline void USE(T) {}
-
-// Use implicit_cast as a safe version of static_cast or const_cast
-// for upcasting in the type hierarchy (i.e. casting a pointer to Foo
-// to a pointer to SuperclassOfFoo or casting a pointer to Foo to
-// a const pointer to Foo).
-// When you use implicit_cast, the compiler checks that the cast is safe.
-// Such explicit implicit_casts are necessary in surprisingly many
-// situations where C++ demands an exact type match instead of an
-// argument type convertible to a target type.
-//
-// The From type can be inferred, so the preferred syntax for using
-// implicit_cast is the same as for static_cast etc.:
-//
-//   implicit_cast<ToType>(expr)
-//
-// implicit_cast would have been part of the C++ standard library,
-// but the proposal was submitted too late.  It will probably make
-// its way into the language in the future.
-template <typename To, typename From>
-inline To implicit_cast(From const& f) {
-  return f;
-}
-
-// Use like this: down_cast<T*>(foo);
-template <typename To, typename From>  // use like this: down_cast<T*>(foo);
-inline To down_cast(From* f) {         // so we only accept pointers
-  // Ensures that To is a sub-type of From *.  This test is here only
-  // for compile-time type checking, and has no overhead in an
-  // optimized build at run-time, as it will be optimized away completely.
-  if (false) {
-    implicit_cast<From, To>(0);
-  }
-  return static_cast<To>(f);
-}
 
 // The type-based aliasing rule allows the compiler to assume that
 // pointers of different types (for some definition of different)
@@ -611,9 +627,8 @@ inline To down_cast(From* f) {         // so we only accept pointers
 // type to another thus avoiding the warning.
 template <class D, class S>
 inline D bit_cast(const S& source) {
-  // Compile time assertion: sizeof(D) == sizeof(S). A compile error
-  // here means your D and S have different sizes.
-  DART_UNUSED typedef char VerifySizesAreEqual[sizeof(D) == sizeof(S) ? 1 : -1];
+  static_assert(sizeof(D) == sizeof(S),
+                "Source and destination must have the same size");
 
   D destination;
   // This use of memcpy is safe: source and destination cannot overlap.
@@ -634,36 +649,6 @@ inline D bit_copy(const S& source) {
          sizeof(destination));
   return destination;
 }
-
-#if defined(HOST_ARCH_ARM) || defined(HOST_ARCH_ARM64)
-// Similar to bit_copy and bit_cast, but does take the type from the argument.
-template <typename T>
-static inline T ReadUnaligned(const T* ptr) {
-  T value;
-  memcpy(reinterpret_cast<void*>(&value), reinterpret_cast<const void*>(ptr),
-         sizeof(value));
-  return value;
-}
-
-// Similar to bit_copy and bit_cast, but does take the type from the argument.
-template <typename T>
-static inline void StoreUnaligned(T* ptr, T value) {
-  memcpy(reinterpret_cast<void*>(ptr), reinterpret_cast<const void*>(&value),
-         sizeof(value));
-}
-#else   // !(HOST_ARCH_ARM || HOST_ARCH_ARM64)
-// Similar to bit_copy and bit_cast, but does take the type from the argument.
-template <typename T>
-static inline T ReadUnaligned(const T* ptr) {
-  return *ptr;
-}
-
-// Similar to bit_copy and bit_cast, but does take the type from the argument.
-template <typename T>
-static inline void StoreUnaligned(T* ptr, T value) {
-  *ptr = value;
-}
-#endif  // !(HOST_ARCH_ARM || HOST_ARCH_ARM64)
 
 // On Windows the reentrent version of strtok is called
 // strtok_s. Unify on the posix name strtok_r.
@@ -700,6 +685,14 @@ static inline void StoreUnaligned(T* ptr, T value) {
 #define STDOUT_FILENO 1
 #define STDERR_FILENO 2
 #endif
+
+#ifndef PATH_MAX
+// Most platforms use PATH_MAX, but in Windows it's called MAX_PATH.
+#define PATH_MAX MAX_PATH
+#endif
+
+// Undefine math.h definition which clashes with our condition names.
+#undef OVERFLOW
 
 }  // namespace dart
 

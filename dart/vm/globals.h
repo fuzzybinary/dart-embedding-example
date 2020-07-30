@@ -17,9 +17,6 @@
 #undef near
 #endif  // defined(_WIN32)
 
-// The following #defines are invalidated.
-#undef OVERFLOW  // From math.h conflicts in constants_ia32.h
-
 namespace dart {
 // Smi value range is from -(2^N) to (2^N)-1.
 // N=30 (32-bit build) or N=62 (64-bit build).
@@ -36,7 +33,12 @@ const intptr_t kSmiMin32 = -(static_cast<intptr_t>(1) << kSmiBits32);
 const intptr_t kBytesPerBigIntDigit = 4;
 
 // The default old gen heap size in MB, where 0 == unlimited.
-const intptr_t kDefaultMaxOldGenHeapSize = (kWordSize <= 4) ? 1536 : 0;
+// 32-bit: OS limit is 2 or 3 GB
+// 64-bit: Linux's limit is
+//   sysctl vm.max_map_count (default 2^16) * 512 KB OldPages = 32 GB
+// Set the VM limit below the OS limit to increase the likelihood of failing
+// gracefully with a Dart OutOfMemory exception instead of SIGABORT.
+const intptr_t kDefaultMaxOldGenHeapSize = (kWordSize <= 4) ? 1536 : 30720;
 
 #define kPosInfinity bit_cast<double>(DART_UINT64_C(0x7ff0000000000000))
 #define kNegInfinity bit_cast<double>(DART_UINT64_C(0xfff0000000000000))
@@ -73,16 +75,31 @@ const intptr_t kDefaultMaxOldGenHeapSize = (kWordSize <= 4) ? 1536 : 0;
 #define NOT_IN_PRECOMPILED(code) code
 #endif  // defined(DART_PRECOMPILED_RUNTIME)
 
-#if defined(ARCH_IS_64_BIT)
-#define HASH_IN_OBJECT_HEADER 1
+#if defined(DART_PRECOMPILED_RUNTIME)
+#define ONLY_IN_PRECOMPILED(code) code
+#else
+#define ONLY_IN_PRECOMPILED(code)
+#endif  // defined(DART_PRECOMPILED_RUNTIME)
+
+#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64) ||                  \
+    defined(TARGET_ARCH_X64)
+#define ONLY_IN_ARM_ARM64_X64(code) code
+#else
+#define ONLY_IN_ARM_ARM64_X64(code)
 #endif
 
-// For checking deterministic graph generation, we can store instruction
-// tag in the ICData and check it when recreating the flow graph in
-// optimizing compiler. Enable it for other modes (product, release) if needed
-// for debugging.
-#if defined(DEBUG)
-#define TAG_IC_DATA
+#if defined(DART_PRECOMPILED_RUNTIME)
+#define NOT_IN_PRECOMPILED_RUNTIME(code)
+#else
+#define NOT_IN_PRECOMPILED_RUNTIME(code) code
+#endif  // defined(DART_PRECOMPILED_RUNTIME)
+
+#if !defined(PRODUCT) || defined(HOST_OS_FUCHSIA) || defined(TARGET_OS_FUCHSIA)
+#define SUPPORT_TIMELINE 1
+#endif
+
+#if defined(ARCH_IS_64_BIT) && !defined(IS_SIMARM_X64)
+#define HASH_IN_OBJECT_HEADER 1
 #endif
 
 // The expression OFFSET_OF(type, field) computes the byte-offset of
@@ -164,6 +181,17 @@ static const uword kZapUninitializedWord = 0xabababababababab;
   fp = reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
 
 #endif  // !defined(HOST_OS_WINDOWS))
+
+#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64) ||                  \
+    defined(TARGET_ARCH_X64)
+#define TARGET_USES_OBJECT_POOL 1
+#endif
+
+#if defined(DART_PRECOMPILER) &&                                               \
+    (defined(TARGET_ARCH_X64) || defined(TARGET_ARCH_ARM) ||                   \
+     defined(TARGET_ARCH_ARM64))
+#define DART_SUPPORT_PRECOMPILATION 1
+#endif
 
 }  // namespace dart
 

@@ -7,6 +7,11 @@
 
 #include "bin/builtin.h"
 #include "platform/globals.h"
+#include "platform/utils.h"
+
+#if defined(HOST_OS_MACOS)
+#include "bin/platform_macos.h"
+#endif  // defined(HOST_OS_MACOS)
 
 namespace dart {
 namespace bin {
@@ -64,6 +69,14 @@ class Platform {
 
   static const char* ResolveExecutablePath();
 
+  // This has the same effect as calling ResolveExecutablePath except that
+  // Dart_ScopeAllocate is not called and that the result goes into the given
+  // parameters.
+  // WARNING: On Fuchsia it returns -1, i.e. doesn't work.
+  // Note that `result` should be pre-allocated with size `result_size`.
+  // The return-value is the length read into `result` or -1 on failure.
+  static intptr_t ResolveExecutablePathInto(char* result, size_t result_size);
+
   // Stores the executable name.
   static void SetExecutableName(const char* executable_name) {
     executable_name_ = executable_name;
@@ -74,7 +87,7 @@ class Platform {
       // Try to resolve the executable path using platform specific APIs.
       const char* resolved_name = Platform::ResolveExecutablePath();
       if (resolved_name != NULL) {
-        resolved_executable_name_ = _strdup(resolved_name);
+        resolved_executable_name_ = Utils::StrDup(resolved_name);
       }
     }
     return resolved_executable_name_;
