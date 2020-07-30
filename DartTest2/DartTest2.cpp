@@ -9,14 +9,9 @@
 
 #include "include/dart_api.h"
 #include "include/dart_tools_api.h"
+#include "include/bin/dart_io_api.h"
 
-#include "bin/dfe.h"
-#include "bin/platform.h"
-#include "bin/vmservice_impl.h"
-#include "bin/isolate_data.h"
-#include "bin/utils.h"
-#include "bin/eventhandler.h"
-#include "bin/thread.h"
+#include "DartIsolate.h"
 
 using namespace dart::bin;
 
@@ -89,36 +84,6 @@ Dart_Handle FilePathFromUri(Dart_Handle script, Dart_Handle core_library)
     return Dart_Invoke(core_library, Dart_NewStringFromCString("_filePathFromUri"), 1, args);
 }
 
-Dart_Handle ReadSource(Dart_Handle script, Dart_Handle core_library)
-{
-    Dart_Handle script_path = FilePathFromUri(script, core_library);
-    if (Dart_IsError(script_path))
-        return script_path;
-
-    const char* script_path_str;
-    Dart_StringToCString(script_path, &script_path_str);
-
-    FILE* file = nullptr;
-    fopen_s(&file, script_path_str, "r");
-    if (file == nullptr)
-        return Dart_Error("Unable to read file '%s'", script_path_str);
-
-    fseek(file, 0, SEEK_END);
-    long length = ftell(file);
-    fseek(file, 0, SEEK_SET);
-
-    char* buffer = new char[length + 1];
-    size_t read = fread(buffer, 1, length, file);
-    fclose(file);
-    buffer[read] = '\0';
-
-    Dart_Handle source = Dart_NewStringFromCString(buffer);
-
-    delete[] buffer;
-
-    return source;
-}
-
 Dart_Handle ResolveScript(const char* script, Dart_Handle core_library)
 {
     const int kNumArgs = 1;
@@ -150,13 +115,6 @@ Dart_Handle LibraryTagHandler(Dart_LibraryTag tag, Dart_Handle library, Dart_Han
     return Dart_Null();
 }
 
-
-bool IsServiceIsolateURL(const char* url_name) 
-{
-    return url_name != nullptr &&
-        std::string(url_name) == DART_VM_SERVICE_ISOLATE_NAME;
-}
-
 static Dart_Isolate CreateAndSetupKernelIsolate(const char* script_uri,
     const char* main,
     const char* package_root,
@@ -183,11 +141,7 @@ static Dart_Isolate CreateAndSetupKernelIsolate(const char* script_uri,
         delete isolate_data;
         return NULL;
     }
-    //kernel_isolate_is_running = true;
-
-    //return IsolateSetupHelper(isolate, false, uri, package_root, packages_config,
-    //    false, flags, error, exit_code);
-
+    
     Dart_EnterScope(); 
     
     Dart_Handle result = Dart_SetLibraryTagHandler(LibraryTagHandler);
@@ -270,6 +224,7 @@ Dart_Isolate CreateIsolate(bool isMainIsolate, const char* script, const char* m
     }
 
     DartUtils::SetupServiceLoadPort();
+    DartUtils::SetupPackageRoot(packageRoot, packageConfig);
     if (!dfe.CanUseDartFrontend()) {
         goto fail;
     }
@@ -409,10 +364,25 @@ int main(int argc, const char** argv)
     params.version = DART_INITIALIZE_PARAMS_CURRENT_VERSION;
     params.vm_snapshot_data = kDartVmSnapshotData;
     params.vm_snapshot_instructions = kDartVmSnapshotInstructions;
-    params.create = IsolateCreateCallback;
-    params.shutdown = IsolateShutdownCallback;
+    params.create_group = reinterpret_cast<decltype(params.create_group)>(
+        DartIsolate::DartIsolateGroupCreateCallback
+    );
+    params.cleanup_group = reinterpret_cast<decltype(params.cleanup_group)>(
+        DartIsolate::DartIsolateGroupCleanupCallback
+    );
+    params.initialize_isolate = reinterpret_cast<decltype(params.initialize_isolate)>(
+        DartIsolate::DartIsolateInitializeCallback
+        );
+    params.shutdown_isolate = reinterpret_cast<decltype(params.shutdown_isolate)>(
+        DartIsolate::DartIsolateShutdownCallback
+        );
+    params.cleanup_isolate = reinterpret_cast<decltype(params.cleanup_isolate)> (
+        DartIsolate::DartIsolateCleanupCallback
+        );
+    params.entropy_source = dart::bin::GetEntropy;
+
     params.start_kernel_isolate = true;
-//        dfe.UseDartFrontend() && dfe.CanUseDartFrontend();
+
     char* initError = Dart_Initialize(&params);
     if (initError)
     {
@@ -427,7 +397,7 @@ int main(int argc, const char** argv)
     char* error;
     int exitCode;
 
-    Dart_Isolate isolate = CreateIsolate(true, "hello_world.dart", "main", nullptr, nullptr, &isolateFlags, &error, &exitCode);
+    Dart_Isolate isolate = CreateIsolate(true, "hello_world.dart", "main", nullptr, "c:\\Uses\\jeff\\Projects\\DartTest2\\DartTest2\\.packages", &isolateFlags, &error, &exitCode);
     
     Dart_EnterIsolate(isolate);
     Dart_EnterScope();
