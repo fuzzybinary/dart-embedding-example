@@ -17,6 +17,7 @@
 #include "bin/utils.h"
 #include "bin/eventhandler.h"
 #include "bin/thread.h"
+#include "bin/gzip.h"
 
 using namespace dart::bin;
 
@@ -32,6 +33,28 @@ extern "C"
     extern const uint8_t kDartVmSnapshotInstructions[];
     extern const uint8_t kDartCoreIsolateSnapshotData[];
     extern const uint8_t kDartCoreIsolateSnapshotInstructions[];
+}
+
+namespace dart
+{
+    namespace bin
+    {
+        extern unsigned int observatory_assets_archive_len;
+        extern const uint8_t* observatory_assets_archive;
+    }
+}
+
+Dart_Handle GetVMServiceAssetsArchiveCallback() 
+{
+    uint8_t* decompressed = NULL;
+    intptr_t decompressed_len = 0;
+    Decompress(observatory_assets_archive, observatory_assets_archive_len,
+        &decompressed, &decompressed_len);
+    Dart_Handle tar_file =
+        DartUtils::MakeUint8Array(decompressed, decompressed_len);
+    // Free decompressed memory as it has been copied into a Dart array.
+    free(decompressed);
+    return tar_file;
 }
 
 Dart_Handle HandleError(Dart_Handle handle)
@@ -117,7 +140,6 @@ static Dart_Handle SetupCoreLibraries(Dart_Isolate isolate,
         result = Dart_StringToCString(result, resolved_packages_config);
         if (Dart_IsError(result)) return result;
         ASSERT(*resolved_packages_config != nullptr);
-#if !defined(DART_PRECOMPILED_RUNTIME)
         if (is_isolate_group_start) {
             isolate_group_data->set_resolved_packages_config(
                 *resolved_packages_config);
@@ -126,7 +148,6 @@ static Dart_Handle SetupCoreLibraries(Dart_Isolate isolate,
             ASSERT(strcmp(isolate_group_data->resolved_packages_config(),
                 *resolved_packages_config) == 0);
         }
-#endif
     }
 
     result = Dart_SetEnvironmentCallback(DartUtils::EnvironmentCallback);
@@ -414,7 +435,7 @@ static void DeleteIsolateGroupData(void* callback_data) {
 
 int main(int argc, const char** argv)
 {
-    //dart::FLAG_trace_service = true;
+    dart::FLAG_trace_service = true;
     //dart::FLAG_trace_service_verbose = true;
 
     Dart_SetVMFlags(argc, argv);
@@ -429,19 +450,6 @@ int main(int argc, const char** argv)
     
     DartUtils::SetOriginalWorkingDirectory();
 
-    dfe.Init();
-    uint8_t* application_kernel_buffer = NULL;
-    intptr_t application_kernel_buffer_size = 0;
-    dfe.ReadScript("hello_world.dart", &application_kernel_buffer,
-        &application_kernel_buffer_size);
-    if (application_kernel_buffer != NULL) 
-    {
-        // Since we loaded the script anyway, save it.
-        dfe.set_application_kernel_buffer(application_kernel_buffer,
-            application_kernel_buffer_size);
-        dfe.set_use_dfe();
-    }
-
     Dart_InitializeParams params = {};
     params.version = DART_INITIALIZE_PARAMS_CURRENT_VERSION;
     params.vm_snapshot_data = kDartVmSnapshotData;
@@ -452,8 +460,8 @@ int main(int argc, const char** argv)
     params.cleanup_isolate = DeleteIsolateData;
     params.cleanup_group = DeleteIsolateGroupData;
     params.entropy_source = DartUtils::EntropySource;
+    params.get_service_assets = GetVMServiceAssetsArchiveCallback;
     params.start_kernel_isolate = true;
-//        dfe.UseDartFrontend() && dfe.CanUseDartFrontend();
     char* initError = Dart_Initialize(&params);
     if (initError)
     {
@@ -466,9 +474,8 @@ int main(int argc, const char** argv)
     Dart_IsolateFlagsInitialize(&isolateFlags);
 
     char* error;
-    int exitCode;
 
-    Dart_Isolate isolate = CreateIsolate(true, "hello_world.dart", "main", nullptr, nullptr, &isolateFlags, &error);
+    Dart_Isolate isolate = CreateIsolate(true, "hello_world.dart", "main", nullptr, &isolateFlags, nullptr, &error);
     
     Dart_EnterIsolate(isolate);
     Dart_EnterScope();
