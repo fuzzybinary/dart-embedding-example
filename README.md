@@ -40,6 +40,7 @@ You can override the executable for building this by setting the following envir
 set GYP_MSVS_VERSION=2017
 set DEPOT_TOOLS_WIN_TOOLCHAIN=0
 set GYP_MSVS_OVERRIDE_PATH="C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\"
+```
 
 ## Build the SDK
 Just in case, let's make sure everything builds properly.
@@ -79,4 +80,3 @@ These changes are made in build/config/compiler/BUILD.gn
 Like this?
 ==========
 Follow me [(@fuzzybinary)](http://twitter.com/fuzzybinary) on twitter and let me know. I'd love to hear from you!
-```
