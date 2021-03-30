@@ -24,7 +24,6 @@ class DFE {
   // Call Init before Dart_Initialize to prevent races between the
   // different isolates.
   void Init();
-  void Init(int target_abi_version);
 
   char* frontend_filename() const { return frontend_filename_; }
 
@@ -43,6 +42,11 @@ class DFE {
   }
   bool use_incremental_compiler() const { return use_incremental_compiler_; }
 
+  void set_verbosity(Dart_KernelCompilationVerbosityLevel verbosity) {
+    verbosity_ = verbosity;
+  }
+  Dart_KernelCompilationVerbosityLevel verbosity() const { return verbosity_; }
+
   // Returns the platform binary file name if the path to
   // kernel binaries was set using SetKernelBinaries.
   const char* GetPlatformBinaryFilename();
@@ -60,20 +64,28 @@ class DFE {
 
   // Compiles specified script.
   // Returns result from compiling the script.
+  //
+  // `snapshot` is used by the frontend to determine if compilation
+  // related information should be printed to console (e.g., null safety mode).
   Dart_KernelCompilationResult CompileScript(const char* script_uri,
                                              bool incremental,
-                                             const char* package_config);
+                                             const char* package_config,
+                                             bool snapshot);
 
   // Compiles specified script and reads the resulting kernel file.
   // If the compilation is successful, returns a valid in memory kernel
   // representation of the script, NULL otherwise
   // 'error' and 'exit_code' have the error values in case of errors.
+  //
+  // `snapshot` is used by the frontend to determine if compilation
+  // related information should be printed to console (e.g., null safety mode).
   void CompileAndReadScript(const char* script_uri,
                             uint8_t** kernel_buffer,
                             intptr_t* kernel_buffer_size,
                             char** error,
                             int* exit_code,
-                            const char* package_config);
+                            const char* package_config,
+                            bool snapshot);
 
   // Reads the script kernel file if specified 'script_uri' is a kernel file.
   // Returns an in memory kernel representation of the specified script is a
@@ -108,18 +120,14 @@ class DFE {
   bool use_dfe_;
   bool use_incremental_compiler_;
   char* frontend_filename_;
-  const uint8_t* kernel_service_dill_;
-  intptr_t kernel_service_dill_size_;
-  const uint8_t* platform_strong_dill_for_compilation_;
-  intptr_t platform_strong_dill_for_compilation_size_;
-  const uint8_t* platform_strong_dill_for_execution_;
-  intptr_t platform_strong_dill_for_execution_size_;
+  Dart_KernelCompilationVerbosityLevel verbosity_ =
+      Dart_KernelCompilationVerbosityLevel_All;
 
   // Kernel binary specified on the cmd line.
   uint8_t* application_kernel_buffer_;
   intptr_t application_kernel_buffer_size_;
 
-  bool InitKernelServiceAndPlatformDills(int target_abi_version);
+  void InitKernelServiceAndPlatformDills();
 
   DISALLOW_COPY_AND_ASSIGN(DFE);
 };

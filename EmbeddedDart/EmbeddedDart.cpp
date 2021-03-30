@@ -243,7 +243,7 @@ Dart_Isolate CreateServiceIsolate(
     const intptr_t port = 5858;
     const bool disable_websocket_origin_check = false;
     const bool service_isolate_booted = VmService::Setup(ip, port, false, disable_websocket_origin_check,
-        NULL, true, true, true);
+        NULL, true, true, true, true);
     assert(service_isolate_booted);
 
     Dart_Handle result = Dart_SetEnvironmentCallback(DartUtils::EnvironmentCallback);
@@ -267,8 +267,10 @@ Dart_Isolate CreateIsolate(
     uint8_t* kernel_buffer = NULL;
     intptr_t kernel_buffer_size = 0;
 
+    PathSanitizer script_uri_sanitizer(script_uri);
+    PathSanitizer packages_config_sanitizer(packages_config);
     dfe.ReadScript(script_uri, &kernel_buffer, &kernel_buffer_size);
-    //flags->null_safety = true;
+    flags->null_safety = true;
 
     auto isolate_group_data = new IsolateGroupData(
         script_uri, packages_config, nullptr, false);
@@ -293,14 +295,15 @@ Dart_Isolate CreateIsolate(
 
     Dart_Handle result = Dart_SetLibraryTagHandler(LibraryTagHandler);
     const char* resolvedPackagesConfig = nullptr;
-    SetupCoreLibraries(isolate, isolate_data, false, &resolvedPackagesConfig);
+    SetupCoreLibraries(isolate, isolate_data, true, &resolvedPackagesConfig);
     
     uint8_t* application_kernel_buffer = NULL;
     intptr_t application_kernel_buffer_size = 0;
     int exit_code = 0;
     dfe.CompileAndReadScript(script_uri, &application_kernel_buffer,
         &application_kernel_buffer_size, error, &exit_code,
-        resolvedPackagesConfig);
+        resolvedPackagesConfig,
+        true);
     if (application_kernel_buffer == NULL) {
         Dart_ExitScope();
         Dart_ShutdownIsolate();
@@ -474,8 +477,9 @@ int main(int argc, const char** argv)
     Dart_IsolateFlagsInitialize(&isolateFlags);
 
     char* error;
-
-    Dart_Isolate isolate = CreateIsolate(true, "hello_world.dart", "main", nullptr, &isolateFlags, nullptr, &error);
+    const char* scriptFile = "hello_world.dart";
+    const char* packageConfig = ".dart_tool/package_config.json";
+    Dart_Isolate isolate = CreateIsolate(true, scriptFile, "main", packageConfig, &isolateFlags, nullptr, &error);
     
     Dart_EnterIsolate(isolate);
     Dart_EnterScope();
