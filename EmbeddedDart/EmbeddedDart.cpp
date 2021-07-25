@@ -9,6 +9,7 @@
 
 #include "include/dart_api.h"
 #include "include/dart_tools_api.h"
+#include "include/dart_embedder_api.h"
 
 #include "bin/dfe.h"
 #include "bin/platform.h"
@@ -238,7 +239,6 @@ Dart_Isolate CreateServiceIsolate(
 
     Dart_EnterScope();
 
-    // Re-enable this once I hear back about why the service isolate isn't actually running the vmservice package
     const char* ip = "127.0.0.1";
     const intptr_t port = 5858;
     const bool disable_websocket_origin_check = false;
@@ -296,31 +296,39 @@ Dart_Isolate CreateIsolate(
     Dart_Handle result = Dart_SetLibraryTagHandler(LibraryTagHandler);
     const char* resolvedPackagesConfig = nullptr;
     SetupCoreLibraries(isolate, isolate_data, true, &resolvedPackagesConfig);
-    
-    uint8_t* application_kernel_buffer = NULL;
-    intptr_t application_kernel_buffer_size = 0;
-    int exit_code = 0;
-    dfe.CompileAndReadScript(script_uri, &application_kernel_buffer,
-        &application_kernel_buffer_size, error, &exit_code,
-        resolvedPackagesConfig,
-        true);
-    if (application_kernel_buffer == NULL) {
-        Dart_ExitScope();
-        Dart_ShutdownIsolate();
-        return NULL;
-    }
 
-    isolate_group_data->SetKernelBufferNewlyOwned(
-        application_kernel_buffer, application_kernel_buffer_size);
-    kernel_buffer = application_kernel_buffer;
-    kernel_buffer_size = application_kernel_buffer_size;
+    if (kernel_buffer == nullptr && !Dart_IsKernelIsolate(isolate))
+    {
+        uint8_t* application_kernel_buffer = NULL;
+        intptr_t application_kernel_buffer_size = 0;
+        int exit_code = 0;
+        dfe.CompileAndReadScript(script_uri, &application_kernel_buffer,
+            &application_kernel_buffer_size, error, &exit_code,
+            resolvedPackagesConfig,
+            true);
+        if (application_kernel_buffer == NULL) {
+            Dart_ExitScope();
+            Dart_ShutdownIsolate();
+            return NULL;
+        }
+
+        isolate_group_data->SetKernelBufferNewlyOwned(
+            application_kernel_buffer, application_kernel_buffer_size);
+        kernel_buffer = application_kernel_buffer;
+        kernel_buffer_size = application_kernel_buffer_size;
+    }
+    
     if (kernel_buffer != NULL) {
         Dart_Handle uri = Dart_NewStringFromCString(script_uri);
         //CHECK_RESULT(uri);
         Dart_Handle resolved_script_uri = DartUtils::ResolveScript(uri);
         //CHECK_RESULT(resolved_script_uri);
         result = Dart_LoadScriptFromKernel(kernel_buffer, kernel_buffer_size);
-        //CHECK_RESULT(result);
+        if (Dart_IsError(result))
+        {
+            printf("Error loading script: %s", Dart_GetError(result));
+            return nullptr;
+        }
     }
     
     Dart_ExitScope();
@@ -447,12 +455,29 @@ int main(int argc, const char** argv)
         return -1;
     }
     
-    //Thread::InitOnce();
-    TimerUtils::InitOnce();
-    EventHandler::Start();
-    
-    DartUtils::SetOriginalWorkingDirectory();
+    char* error = nullptr;
+    if (!dart::embedder::InitOnce(&error))
+    {
+        printf("Standalone embedde: %s\n", error);
+        free(error);
+        return -1;
+    }
 
+    bool loadDill = true;
+    const char* scriptFile = loadDill ? "hello_world.dill" : "hello_world.dart";
+    const char* packageConfig = ".dart_tool/package_config.json";
+
+    dfe.Init();
+    dfe.set_use_dfe();
+    
+    /*uint8_t* applicationKernelBuffer = nullptr;
+    intptr_t applicationKernelBufferSize = 0;
+    dfe.ReadScript(scriptFile, &applicationKernelBuffer, &applicationKernelBufferSize);
+    if (applicationKernelBuffer != nullptr)
+    {
+        dfe.set_application_kernel_buffer(applicationKernelBuffer, applicationKernelBufferSize);
+    }*/
+    
     Dart_InitializeParams params = {};
     params.version = DART_INITIALIZE_PARAMS_CURRENT_VERSION;
     params.vm_snapshot_data = kDartVmSnapshotData;
@@ -464,11 +489,11 @@ int main(int argc, const char** argv)
     params.cleanup_group = DeleteIsolateGroupData;
     params.entropy_source = DartUtils::EntropySource;
     params.get_service_assets = GetVMServiceAssetsArchiveCallback;
-    params.start_kernel_isolate = true;
+    params.start_kernel_isolate = dfe.UseDartFrontend() && dfe.CanUseDartFrontend();
     char* initError = Dart_Initialize(&params);
     if (initError)
     {
-        std::cout << initError;
+        printf("Dart_Init failed: %s\n", error);
         return 0;
     }
 
@@ -476,10 +501,12 @@ int main(int argc, const char** argv)
     Dart_IsolateFlags isolateFlags;
     Dart_IsolateFlagsInitialize(&isolateFlags);
 
-    char* error;
-    const char* scriptFile = "hello_world.dart";
-    const char* packageConfig = ".dart_tool/package_config.json";
     Dart_Isolate isolate = CreateIsolate(true, scriptFile, "main", packageConfig, &isolateFlags, nullptr, &error);
+    if (isolate == nullptr)
+    {
+        printf("Failed creating isolate: %s\n", error);
+        return -1;
+    }
     
     Dart_EnterIsolate(isolate);
     Dart_EnterScope();
@@ -517,6 +544,8 @@ int main(int argc, const char** argv)
     Dart_ShutdownIsolate();
 
     Dart_Cleanup();
+
+    dart::embedder::Cleanup();
 
     return 0;
 }
