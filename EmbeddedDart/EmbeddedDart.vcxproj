@@ -113,7 +113,7 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(SolutionDir)/dart/lib/win-debug-x64</AdditionalLibraryDirectories>
-      <AdditionalDependencies>dart_lib.lib;dbghelp.lib;rpcrt4.lib;ws2_32.lib;Iphlpapi.lib;Psapi.lib;shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libdart.lib;dbghelp.lib;rpcrt4.lib;ws2_32.lib;Iphlpapi.lib;Psapi.lib;shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -154,7 +154,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(SolutionDir)/dart/lib/win-release-x64</AdditionalLibraryDirectories>
-      <AdditionalDependencies>dart_lib.lib;dbghelp.lib;rpcrt4.lib;ws2_32.lib;Iphlpapi.lib;Psapi.lib;shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libdart.lib;dbghelp.lib;rpcrt4.lib;ws2_32.lib;Iphlpapi.lib;Psapi.lib;shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

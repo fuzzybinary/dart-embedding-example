@@ -1,6 +1,6 @@
 # How to use this
 
-_Updated 03/30/2021 - Updated to Dart 2.12.2 _
+_Updated 07/24/2021 - Updated to Dart 2.13.4_
 
 You can clone this repo and pull out the dart directory which contains all the headers and
 libraries you'll need (see Other Notes about some gotchas with these libs).
@@ -11,6 +11,10 @@ DartTest2/DartTest2.cpp does all of the embedding work. Note:
 - You can use `Dart_Invoke` over `Dart_RunLoop` to execute a single Dart function, but doing
   so does not drain the message queue. To do so see [Draining the Message Queue](#draining-the-message-queue)
 - Debugging should work provided the service isolate starts up correctly.
+- Hot reloading works, but requires a you write your own watcher script to trigger it, as VSCode doesn't implement it for anything other than Flutter projects.
+  see [this issue](https://github.com/Dart-Code/Dart-Code/issues/2708) for more information.
+    - The [Hotreloader](https://pub.dev/packages/hotreloader) pub package implements hot reloading for the current process, but the code can be ported
+      for connecting to an embedded instance.
 - This does not take into account loading pre-compiled dart libraries.
 
 Other Notes -
@@ -47,7 +51,7 @@ Make sure depot_tools is also on your path **and** if you have Python 3 installe
 
 Just in case, let's make sure everything builds properly.
 
-As of this writing, this just involves doing tools/build.py --mode=release create_sdk
+As of this writing, this just involves doing `python tools/build.py --mode=release create_sdk`
 
 ## Modify some GN files
 
@@ -59,7 +63,7 @@ a library that is all of dart.exe minus "main.cc" and called it "dart_lib". To d
 - Regenerate your ninja files for Dart (buildtools\win\gn.exe gen out\DebugX64)
 - Build the library
   - Move to out\DebugX64
-  - ninja dart_lib
+  - ninja libdart
 - The new library will be in out\DebugX64\obj\runtime\bin
 - I copied over a bunch of header files into the dart directory locally. You could just
   reference them directly if you had the dart directory in your include path. You can
@@ -74,7 +78,7 @@ For simplicity, here are the current full modifications I made to the dart-sdk g
 In _runtime/bin/BUILD.gn_ add the following:
 
 ```
-static_library("dart_lib") {
+static_library("libdart") {
   deps = [
     ":standalone_dart_io",
     "..:libdart_jit",
