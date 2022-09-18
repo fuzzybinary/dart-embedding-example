@@ -1,3 +1,10 @@
+# NOTE
+
+I'm now working more on using Dart from a .dll / so, as well as building / linking from
+a Dart repo directly. Though still in early stages, that effort is hosted 
+[here](https://github.com/fuzzybinary/dart_shared_libray). I'm hoping to also include more
+examples in that repo as well as instructions for building for both Mac and Linux.
+
 # How to use this
 
 _Updated 07/24/2021 - Updated to Dart 2.13.4_
@@ -71,13 +78,13 @@ Instead of trying to figure out what was necessary and not, I basically created 
 all of dart.exe minus "main.cc" and called it "dart_lib". To do this:
 
 - See modifications below
-- Regenerate your ninja files for Dart (buildtools\win\gn.exe gen out\DebugX64)
+- Regenerate your ninja files for Dart (buildtools\gn.exe gen out\DebugX64)
 - Build the library
   - Move to out\DebugX64
   - ninja libdart
 - The new library will be in out\DebugX64\obj\runtime\bin
 - I copied over a bunch of header files into the dart directory locally. You could just reference
-  them directly if you had the dart directory in your include path. You can look in theh repo and
+  them directly if you had the dart directory in your include path. You can look in the repo and
   see what I needed to copy other than the dart_api headers
 
 I made other changes to GN files to suit my development style. For example, I no longer use the
