@@ -1,9 +1,9 @@
-# NOTE
+# ⚠ NOTE - DEPRECATED ⚠
 
 I'm now working more on using Dart from a .dll / so, as well as building / linking from
-a Dart repo directly. Though still in early stages, that effort is hosted 
-[here](https://github.com/fuzzybinary/dart_shared_libray). I'm hoping to also include more
-examples in that repo as well as instructions for building for both Mac and Linux.
+a Dart repo directly. That effort is hosted [here](https://github.com/fuzzybinary/dart_shared_libray). 
+That repo includes more examples and scripts for building Dart directly, as well as
+CMAKE scripts for building for both Mac and Linux.
 
 # How to use this
 
